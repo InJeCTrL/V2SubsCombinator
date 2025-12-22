@@ -22,5 +22,9 @@ namespace V2SubsCombinator.Models
         [BsonElement("exportSubGroupId")]
         [BsonRequired]
         public required string ExportSubGroupId { get; set; }
+
+        [BsonElement("userId")]
+        [BsonRequired]
+        public required string UserId { get; set; }
     }
 }

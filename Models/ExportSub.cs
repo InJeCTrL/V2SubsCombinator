@@ -22,6 +22,10 @@ namespace V2SubsCombinator.Models
         [BsonElement("exportSubGroupId")]
         [BsonRequired]
         public required string ExportSubGroupId { get; set; }
+
+        [BsonElement("userId")]
+        [BsonRequired]
+        public required string UserId { get; set; }
     }
 
     public class ExportSubGroup
@@ -34,10 +38,17 @@ namespace V2SubsCombinator.Models
         [BsonRequired]
         public required string Name { get; set; }
 
+        [BsonElement("isActive")]
+        public bool IsActive { get; set; } = true;
+
         [BsonElement("exportSubIds")]
         public List<string> ExportSubIds { get; set; } = [];
 
         [BsonElement("importSubIds")]
         public List<string> ImportSubIds { get; set; } = [];
+
+        [BsonElement("userId")]
+        [BsonRequired]
+        public required string UserId { get; set; }
     }
 }

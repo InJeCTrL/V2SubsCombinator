@@ -8,7 +8,7 @@ namespace V2SubsCombinator.DTOs
 
     public class RegisterResult
     {
-        public bool Success { get; set; } = false;
+        public required bool Success { get; set; }
         public string? Token { get; set; }
         public DateTime? ExpireAt { get; set; }
     }
