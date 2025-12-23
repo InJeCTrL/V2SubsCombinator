@@ -9,16 +9,23 @@ namespace V2SubsCombinator.Database
 
         public MongoDbContext(IConfiguration configuration)
         {
-            var connectionString = configuration["CosmosDb:ConnectionString"];
-            var databaseName = configuration["CosmosDb:DatabaseName"];
+            var connectionString = configuration.GetConnectionString("DefaultConnection")
+                ?? throw new InvalidOperationException("MongoDB connection string is not configured.");
+            var databaseName = configuration.GetConnectionString("Database")
+                ?? throw new InvalidOperationException("MongoDB connection Database is not configured.");;
 
             var client = new MongoClient(connectionString);
             _database = client.GetDatabase(databaseName);
 
-            var indexKeys = Builders<ExportSub>.IndexKeys.Ascending(x => x.Suffix);
             var indexOptions = new CreateIndexOptions { Unique = true };
-            var indexModel = new CreateIndexModel<ExportSub>(indexKeys, indexOptions);
-            ExportSubs.Indexes.CreateOne(indexModel);
+
+            var exportSubIndexKeys = Builders<ExportSub>.IndexKeys.Ascending(x => x.Suffix);
+            var exportSubIndexModel = new CreateIndexModel<ExportSub>(exportSubIndexKeys, indexOptions);
+            ExportSubs.Indexes.CreateOne(exportSubIndexModel);
+
+            var userIndexKeys = Builders<User>.IndexKeys.Ascending(x => x.Username);
+            var userIndexModel = new CreateIndexModel<User>(userIndexKeys, indexOptions);
+            Users.Indexes.CreateOne(userIndexModel);
         }
 
         public IMongoCollection<User> Users => _database.GetCollection<User>("Users");

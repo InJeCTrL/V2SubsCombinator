@@ -1,12 +1,14 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
+using V2SubsCombinator.Database;
+using V2SubsCombinator.IServices;
+using V2SubsCombinator.Services;
+using V2SubsCombinator.Utils;
 
-
-var jwtKey = Environment.GetEnvironmentVariable("JWT_SECRET_KEY")
-    ?? throw new InvalidOperationException("JWT_SECRET_KEY environment variable is not set.");
 
 var builder = WebApplication.CreateBuilder(args);
+
+var jwtHelper = new JWTHelper(builder.Configuration);
 
 builder.Services.AddAuthentication(options =>
 {
@@ -15,16 +17,13 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
-    options.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateIssuer = false,
-        ValidateAudience = false,
-        ValidateLifetime = true,
-        ValidateIssuerSigningKey = true,
-        IssuerSigningKey =
-            new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
-    };
+    options.TokenValidationParameters = jwtHelper.GetValidationParameters();
 });
+
+builder.Services.AddSingleton(jwtHelper);
+builder.Services.AddSingleton<MongoDbContext>();
+builder.Services.AddScoped<IAuthentication, Authentication>();
+builder.Services.AddScoped<ISubscription, Subscription>();
 
 builder.Services.AddControllers();
 
@@ -37,6 +36,7 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+    app.MapGet("/", () => Results.Redirect("/swagger"));
 }
 
 app.UseHttpsRedirection();

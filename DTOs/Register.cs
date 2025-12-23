@@ -1,8 +1,12 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace V2SubsCombinator.DTOs
 {
     public class RegisterRequest
     {
+        [MinLength(1)]
         public required string Username { get; set; }
+        [MinLength(1)]
         public required string Password { get; set; }
     }
 
