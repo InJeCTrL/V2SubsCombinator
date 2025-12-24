@@ -55,3 +55,4 @@ nunit-*.xml
 
 *.http
 *.Development.json
+.vscode
