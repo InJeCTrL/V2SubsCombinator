@@ -1,0 +1,7 @@
+location      = ""
+project_name  = ""
+ghcr_image    = ""
+ghcr_username = ""
+ghcr_token    = ""
+jwt_secret    = ""
+custom_domain = ""

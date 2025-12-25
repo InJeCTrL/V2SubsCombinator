@@ -56,3 +56,4 @@ nunit-*.xml
 *.http
 *.Development.json
 .vscode
+terraform.tfvars
