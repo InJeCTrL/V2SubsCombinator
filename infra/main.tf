@@ -141,11 +141,15 @@ resource "azurerm_container_app" "app" {
   }
 }
 
-# Custom Domain Name
+# Custom Domain Name (certificate needs to be configured manually in Azure Portal)
 resource "azurerm_container_app_custom_domain" "custom" {
   count            = var.custom_domain != "" ? 1 : 0
   name             = var.custom_domain
   container_app_id = azurerm_container_app.app.id
+
+  lifecycle {
+    ignore_changes = [certificate_binding_type, container_app_environment_certificate_id]
+  }
 }
 
 # Outputs
@@ -158,6 +162,12 @@ output "mongodb_connection_string" {
   sensitive = true
 }
 
-output "custom_domain_cname" {
-  value = var.custom_domain != "" ? "Add CNAME: ${var.custom_domain} -> ${azurerm_container_app.app.ingress[0].fqdn}" : "No custom domain name"
+output "custom_domain_setup" {
+  sensitive = true
+  value = var.custom_domain != "" ? join("\n", [
+    "Custom domain setup:",
+    "1. Add CNAME record: ${var.custom_domain} -> ${azurerm_container_app.app.ingress[0].fqdn}",
+    "2. Add TXT record: asuid.${var.custom_domain} -> ${azurerm_container_app.app.custom_domain_verification_id}",
+    "3. After DNS propagation, go to Azure Portal -> Container App -> Custom domains -> Add managed certificate"
+  ]) : "No custom domain configured"
 }
