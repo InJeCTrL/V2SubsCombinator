@@ -7,6 +7,18 @@ namespace V2SubsCombinator.Utils
     public class ClashConfig
     {
         public List<ISupportedNode>? Proxies { get; set; }
+
+        [YamlMember(Alias = "proxy-groups", ApplyNamingConventions = false)]
+        public List<ProxyGroup>? ProxyGroups { get; set; }
+
+        public List<string>? Rules { get; set; }
+    }
+
+    public class ProxyGroup
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Type { get; set; } = "select";
+        public List<string>? Proxies { get; set; }
     }
 
     public static class V2SubsHelper
@@ -80,7 +92,26 @@ namespace V2SubsCombinator.Utils
 
         private static string GenerateClashYaml(List<ISupportedNode> models)
         {
-            var config = new ClashConfig { Proxies = models };
+            var proxyNames = models.Select(m => m.Name).ToList();
+
+            var config = new ClashConfig
+            {
+                Proxies = models,
+                ProxyGroups =
+                [
+                    new ProxyGroup
+                    {
+                        Name = "PROXY",
+                        Type = "select",
+                        Proxies = proxyNames
+                    }
+                ],
+                Rules =
+                [
+                    "GEOIP,CN,DIRECT",
+                    "MATCH,PROXY"
+                ]
+            };
             return yamlSerializer.Serialize(config);
         }
 
