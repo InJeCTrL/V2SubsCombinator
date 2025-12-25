@@ -2,17 +2,22 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 3.0"
+      version = "~> 4.0"
     }
   }
 }
 
 provider "azurerm" {
   features {}
+  subscription_id = var.subscription_id
+}
+
+variable "subscription_id" {
+  description = "Azure Subscription ID"
 }
 
 variable "location" {
-  default = "eastasia"
+  default = "japaneast"
 }
 
 variable "project_name" {
@@ -42,38 +47,26 @@ resource "azurerm_resource_group" "rg" {
   location = var.location
 }
 
-# Cosmos DB (MongoDB API)
+# Cosmos DB with MongoDB Compatibility
 resource "azurerm_cosmosdb_account" "db" {
-  name                = "cosmos-${var.project_name}-${random_string.suffix.result}"
-  location            = azurerm_resource_group.rg.location
+  name                = "mongo-${var.project_name}-${random_string.suffix.result}"
   resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
+
+  kind                = "MongoDB" # Set to MongoDB API
   offer_type          = "Standard"
-  kind                = "MongoDB"
-
-  capabilities {
-    name = "EnableMongo"
-  }
-
-  capabilities {
-    name = "EnableServerless"
-  }
-
   consistency_policy {
     consistency_level = "Session"
   }
 
+  # At least one geo_location block is required, so keep it here
   geo_location {
-    location          = azurerm_resource_group.rg.location
+    location          = var.location
     failover_priority = 0
   }
-}
 
-resource "azurerm_cosmosdb_mongo_database" "mongodb" {
-  name                = "V2SubsCombinator"
-  resource_group_name = azurerm_resource_group.rg.name
-  account_name        = azurerm_cosmosdb_account.db.name
+  # Removed backup block to avoid errors
 }
-
 
 # Log Analytics
 resource "azurerm_log_analytics_workspace" "logs" {
@@ -130,7 +123,7 @@ resource "azurerm_container_app" "app" {
       }
 
       env {
-        name        = "Jwt__Secret"
+        name        = "JWTSettings__Key"
         secret_name = "jwt-secret"
       }
     }
@@ -139,7 +132,7 @@ resource "azurerm_container_app" "app" {
   ingress {
     external_enabled = true
     target_port      = 8080
-    transport        = "http2"
+    transport        = "auto"
 
     traffic_weight {
       percentage      = 100
@@ -147,7 +140,6 @@ resource "azurerm_container_app" "app" {
     }
   }
 }
-
 
 # Custom Domain Name
 resource "azurerm_container_app_custom_domain" "custom" {
