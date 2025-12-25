@@ -23,15 +23,6 @@ variable "ghcr_image" {
   description = "GitHub Container Registry image, e.g. ghcr.io/username/v2subscomb:latest"
 }
 
-variable "ghcr_username" {
-  description = "GitHub username"
-}
-
-variable "ghcr_token" {
-  sensitive   = true
-  description = "GitHub Personal Access Token with read:packages scope"
-}
-
 variable "jwt_secret" {
   sensitive = true
 }
@@ -107,17 +98,6 @@ resource "azurerm_container_app" "app" {
   container_app_environment_id = azurerm_container_app_environment.env.id
   resource_group_name          = azurerm_resource_group.rg.name
   revision_mode                = "Single"
-
-  registry {
-    server               = "ghcr.io"
-    username             = var.ghcr_username
-    password_secret_name = "ghcr-token"
-  }
-
-  secret {
-    name  = "ghcr-token"
-    value = var.ghcr_token
-  }
 
   secret {
     name  = "mongodb-conn"
