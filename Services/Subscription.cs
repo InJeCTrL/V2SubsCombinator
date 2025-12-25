@@ -314,7 +314,7 @@ namespace V2SubsCombinator.Services
 
             var subscriptions = importSubs.Select(s => (s.Url, s.Prefix));
 
-            return await V2SubsHelper.FetchAndCombineSubscriptionsAsync(subscriptions);
+            return await V2SubsHelper.FetchAndCombineSubscriptionsAsync(subscriptions, request.IsClash);
         }
     }
 }

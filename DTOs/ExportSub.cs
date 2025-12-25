@@ -3,6 +3,7 @@ namespace V2SubsCombinator.DTOs
     public class GetExportSubContentRequest
     {
         public required string Suffix { get; set; }
+        public bool IsClash { get; set; } = false;
     }
 
     public class RemoveExportSubRequest : SubscriptionRequestBase

@@ -107,15 +107,18 @@ public class SubscriptionController(ISubscription subscriptionService) : Control
     public async Task<ActionResult> GetExportSubContent([FromRoute] string suffix)
     {
         var request = new GetExportSubContentRequest { Suffix = suffix };
+
+        if (Request.Headers.UserAgent.ToString().Contains("clash", StringComparison.CurrentCultureIgnoreCase))
+        {
+            request.IsClash = true;
+        }
+
         var result = await _subscriptionService.GetExportSubContentAsync(request);
         
         if (string.IsNullOrEmpty(result))
             return NotFound();
 
         var bytes = System.Text.Encoding.UTF8.GetBytes(result);
-        Response.Headers.Append("subscription-userinfo", "name=Aladdin_Network_Optimizer; remark=Aladdin_Network_Optimizer; upload=5332838657; download=130590945813; total=685047283712; expire=1772798220");
-        Response.Headers.Append("content-disposition", "attachment; filename*=UTF-8''Config.txt");
-        // return File(bytes, "application/octet-stream; charset=utf-8", "Config.txt");
-        return File(bytes, "application/octet-stream; charset=utf-8");
+        return File(bytes, "application/octet-stream; charset=utf-8", "V2SubsCombinator");
     }
 }
