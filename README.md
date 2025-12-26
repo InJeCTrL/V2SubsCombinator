@@ -29,7 +29,9 @@ V2Ray/Clash 订阅合并服务，支持多订阅源或节点合并、自定义�
 ### 运行
 
 ```bash
-dotnet run
+> cp appsettings.json appsettings.Development.json
+# !!! 修改 appsettings.Development.json 中的 ConnectionStrings、JWTSettings 配置项 !!!
+> dotnet run
 ```
 
 访问 http://localhost:5025
