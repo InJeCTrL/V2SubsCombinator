@@ -6,7 +6,7 @@ namespace V2SubsCombinator.Utils
 {
     public class ClashConfig
     {
-        public List<ISupportedNode>? Proxies { get; set; }
+        public List<SupportedNode>? Proxies { get; set; }
 
         [YamlMember(Alias = "proxy-groups", ApplyNamingConventions = false)]
         public List<ProxyGroup>? ProxyGroups { get; set; }
@@ -35,19 +35,6 @@ namespace V2SubsCombinator.Utils
             .ConfigureDefaultValuesHandling(DefaultValuesHandling.OmitNull)
             .Build();
 
-        private static readonly ISerializer yamlSerializerForDict = new SerializerBuilder()
-            .WithNamingConvention(HyphenatedNamingConvention.Instance)
-            .Build();
-
-        private static readonly Dictionary<string, Type> NodeTypes = new()
-        {
-            ["vmess"] = typeof(Vmess),
-            ["vless"] = typeof(Vless),
-            ["trojan"] = typeof(Trojan),
-            ["ss"] = typeof(Shadowsocks),
-            ["ssr"] = typeof(ShadowsocksR)
-        };
-
         private static bool IsClashYaml(string content)
         {
             var trimmed = content.TrimStart();
@@ -57,46 +44,51 @@ namespace V2SubsCombinator.Utils
                    trimmed.StartsWith("mixed-port:");
         }
 
-        private static List<ISupportedNode> ParseClashYamlToModels(string yamlContent, string remarkPrefix)
+        private static List<SupportedNode> ParseYamlToNodes(string yamlContent, string remarkPrefix)
         {
-            var models = new List<ISupportedNode>();
             try
             {
-                var dict = yamlDeserializer.Deserialize<Dictionary<string, object>>(yamlContent);
-                if (dict == null || !dict.TryGetValue("proxies", out var proxiesObj) || proxiesObj is not List<object> proxies)
-                    return models;
+                var config = yamlDeserializer.Deserialize<ClashConfig>(yamlContent);
+                if (config?.Proxies == null) return [];
 
-                foreach (var proxy in proxies)
-                {
-                    var proxyYaml = yamlSerializerForDict.Serialize(proxy);
+                foreach (var node in config.Proxies)
+                    node.Name = remarkPrefix + node.Name;
 
-                    if (proxy is not Dictionary<object, object> proxyDict ||
-                        !proxyDict.TryGetValue("type", out var typeObj))
-                        continue;
-
-                    var type = typeObj?.ToString();
-                    if (string.IsNullOrEmpty(type) || !NodeTypes.TryGetValue(type, out var nodeType))
-                        continue;
-
-                    var node = yamlDeserializer.Deserialize(proxyYaml, nodeType) as ISupportedNode;
-                    if (node != null)
-                    {
-                        node.Name = remarkPrefix + node.Name;
-                        models.Add(node);
-                    }
-                }
+                return config.Proxies.Where(n => !string.IsNullOrEmpty(n.Server)).ToList();
             }
-            catch { }
-            return models;
+            catch { return []; }
         }
 
-        private static string GenerateClashYaml(List<ISupportedNode> models)
+        private static SupportedNode? ParseSingleNode(string url, string remarkPrefix)
         {
-            var proxyNames = models.Select(m => m.Name).ToList();
+            var node = new SupportedNode(url, remarkPrefix);
+            return !string.IsNullOrEmpty(node.Server) ? node : null;
+        }
+
+        private static List<SupportedNode> ParseV2rayToNodes(string content, string remarkPrefix)
+        {
+            var nodes = new List<SupportedNode>();
+            var decoded = SupportedNetworkNodeHelper.DecodeBase64(content);
+            foreach (var line in decoded.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var trimmed = line.Trim();
+                if (!string.IsNullOrEmpty(trimmed))
+                {
+                    var node = ParseSingleNode(trimmed, remarkPrefix);
+                    if (node != null) nodes.Add(node);
+                }
+            }
+            return nodes;
+        }
+
+        private static string GenerateYaml(List<SupportedNode> nodes)
+        {
+            var validNodes = nodes.Where(n => !string.IsNullOrEmpty(n.Server) && n.Port != null).ToList();
+            var proxyNames = validNodes.Select(n => n.Name).ToList();
 
             var config = new ClashConfig
             {
-                Proxies = models,
+                Proxies = validNodes,
                 ProxyGroups =
                 [
                     new ProxyGroup
@@ -115,10 +107,13 @@ namespace V2SubsCombinator.Utils
             return yamlSerializer.Serialize(config);
         }
 
-        private static string GenerateBase64(List<ISupportedNode> models)
+        private static string GenerateV2ray(List<SupportedNode> nodes)
         {
-            var lines = models.Select(m => m.ToUrl()).ToList();
-            return SupportedNetworkNodeParser.EncodeBase64(string.Join("\n", lines));
+            var urls = nodes
+                .Select(n => n.ToUrl())
+                .Where(url => !string.IsNullOrEmpty(url))
+                .ToList();
+            return SupportedNetworkNodeHelper.EncodeBase64(string.Join("\n", urls));
         }
 
         public static async Task<string> FetchAndCombineSubscriptionsAsync(
@@ -129,14 +124,13 @@ namespace V2SubsCombinator.Utils
             var tasks = subList.Select(async sub =>
             {
                 var (url, remarkPrefix) = sub;
-                var models = new List<ISupportedNode>();
+                var nodes = new List<SupportedNode>();
 
-                if (SupportedNetworkNodeParser.TryGetNodeType(url, out _))
+                if (SupportedNetworkNodeHelper.TryGetNodeType(url, out _))
                 {
-                    var model = SupportedNetworkNodeParser.Parse(url, remarkPrefix);
-                    if (model != null)
-                        models.Add(model);
-                    return models;
+                    var node = ParseSingleNode(url, remarkPrefix);
+                    if (node != null) nodes.Add(node);
+                    return nodes;
                 }
 
                 for (var retry = 0; retry < 5; retry++)
@@ -147,33 +141,23 @@ namespace V2SubsCombinator.Utils
 
                         if (IsClashYaml(content))
                         {
-                            models.AddRange(ParseClashYamlToModels(content, remarkPrefix));
+                            nodes.AddRange(ParseYamlToNodes(content, remarkPrefix));
                         }
                         else
                         {
-                            var decoded = SupportedNetworkNodeParser.DecodeBase64(content);
-                            foreach (var line in decoded.Split('\n', StringSplitOptions.RemoveEmptyEntries))
-                            {
-                                var trimmed = line.Trim();
-                                if (!string.IsNullOrEmpty(trimmed))
-                                {
-                                    var model = SupportedNetworkNodeParser.Parse(trimmed, remarkPrefix);
-                                    if (model != null)
-                                        models.Add(model);
-                                }
-                            }
+                            nodes.AddRange(ParseV2rayToNodes(content, remarkPrefix));
                         }
                         break;
                     }
                     catch { }
                 }
-                return models;
+                return nodes;
             });
 
             var results = await Task.WhenAll(tasks);
-            var allModels = results.SelectMany(x => x).ToList();
+            var allNodes = results.SelectMany(x => x).ToList();
 
-            return isClash ? GenerateClashYaml(allModels) : GenerateBase64(allModels);
+            return isClash ? GenerateYaml(allNodes) : GenerateV2ray(allNodes);
         }
     }
 }
