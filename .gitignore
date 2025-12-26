@@ -57,5 +57,6 @@ nunit-*.xml
 *.Development.json
 .vscode
 infra/terraform.tfvars
+infra/terraform.tfvars.bak
 infra/.terraform*
 infra/terraform.tfstate*

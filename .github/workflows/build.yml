@@ -56,7 +56,12 @@ jobs:
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
-        run: terraform init
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=rg-tfstate" \
+            -backend-config="storage_account_name=tfstatev2subscomb" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=v2subscomb.tfstate"
         working-directory: infra
 
       - name: Terraform Apply
