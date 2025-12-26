@@ -1,4 +1,4 @@
-name: Build and Push
+name: Build and Deploy
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: injectrl/v2subscombinator
 
 jobs:
   build:
@@ -14,13 +14,15 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      timestamp: ${{ steps.timestamp.outputs.ts }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Lowercase image name
-        id: lowercase
-        run: echo "image=${IMAGE_NAME,,}" >> $GITHUB_OUTPUT
+      - name: Generate timestamp
+        id: timestamp
+        run: echo "ts=$(date +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -34,4 +36,36 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ env.REGISTRY }}/${{ steps.lowercase.outputs.image }}:latest
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.timestamp.outputs.ts }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: infra
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
+        working-directory: infra
+        env:
+          TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          TF_VAR_location: ${{ secrets.TF_VAR_LOCATION }}
+          TF_VAR_project_name: ${{ secrets.TF_VAR_PROJECT_NAME }}
+          TF_VAR_ghcr_image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.timestamp }}
+          TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
+          TF_VAR_custom_domain: ${{ secrets.TF_VAR_CUSTOM_DOMAIN }}
