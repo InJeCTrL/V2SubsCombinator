@@ -202,6 +202,8 @@ namespace V2SubsCombinator.Utils
                 ],
                 Rules =
                 [
+                    "DOMAIN-KEYWORD,localhost,DIRECT",
+                    "IP-CIDR,127.0.0.0/8,DIRECT",
                     "GEOIP,CN,DIRECT",
                     "MATCH,PROXY"
                 ]
