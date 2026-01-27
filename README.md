@@ -60,8 +60,5 @@ V2Ray/Clash 订阅合并服务，支持多订阅源或节点合并、自定义�
 Azure免费层可以基本覆盖以下资源:
 
 - Azure Container Apps
-- Log Analytics Workspace
-
-使用Serverless容量模式基本可以免费:
-
 - Azure Cosmos DB
+- Log Analytics Workspace
