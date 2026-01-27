@@ -55,6 +55,11 @@ resource "azurerm_cosmosdb_account" "db" {
 
   kind                = "MongoDB" # Set to MongoDB API
   offer_type          = "Standard"
+
+  capabilities {
+    name = "EnableServerless"
+  }
+
   consistency_policy {
     consistency_level = "Session"
   }
