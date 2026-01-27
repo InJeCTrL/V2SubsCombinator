@@ -55,7 +55,10 @@ resource "azurerm_cosmosdb_account" "db" {
 
   kind                = "MongoDB" # Set to MongoDB API
   offer_type          = "Standard"
-  free_tier_enabled = true
+
+  capabilities {
+    name = "EnableServerless"
+  }
 
   capabilities {
     name = "EnableMongo"
