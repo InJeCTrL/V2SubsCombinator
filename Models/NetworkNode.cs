@@ -254,7 +254,16 @@ namespace V2SubsCombinator.Models
                     var hostPort = decoded[(atIndex + 1)..];
 
                     var colonIndex = userInfo.IndexOf(':');
-                    if (colonIndex == -1) return false;
+
+                    // If no colon found, userInfo might be Base64 encoded again
+                    if (colonIndex == -1)
+                    {
+                        var decodedUserInfo = SupportedNetworkNodeHelper.DecodeBase64(userInfo);
+                        colonIndex = decodedUserInfo.IndexOf(':');
+                        if (colonIndex == -1) return false;
+                        userInfo = decodedUserInfo;
+                    }
+
                     Cipher = userInfo[..colonIndex];
                     Password = userInfo[(colonIndex + 1)..];
 
