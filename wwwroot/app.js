@@ -136,18 +136,44 @@ async function toggleGroup(id) {
                 <button class="btn-add" onclick="addImportSub('${id}')">+ 添加</button>
             </h4>
             <div class="sub-list">
-                ${(group.importSubData || []).map(s => `
+                ${(group.importSubData || []).map(s => {
+                    const now = new Date();
+                    const expiresAt = s.cacheExpiresAt ? new Date(s.cacheExpiresAt) : null;
+                    const isExpired = expiresAt && expiresAt <= now;
+                    const isCached = expiresAt && expiresAt > now;
+                    // 兼容旧数据：如果 cacheDurationMinutes 不存在，默认为 60
+                    const cacheDuration = s.cacheDurationMinutes !== undefined ? s.cacheDurationMinutes : 60;
+                    const isCacheDisabled = cacheDuration === 0;
+                    
+                    let cacheStatus = '';
+                    if (isCacheDisabled) {
+                        cacheStatus = `<span class="cache-info cache-disabled">✗ 缓存已禁用</span>`;
+                    } else if (isCached) {
+                        const minutesLeft = Math.floor((expiresAt - now) / 60000);
+                        cacheStatus = `<span class="cache-info">✓ 已缓存 (${minutesLeft}分钟后过期)</span>`;
+                    } else if (isExpired) {
+                        cacheStatus = `<span class="cache-info cache-expired">⚠ 缓存已过期</span>`;
+                    } else {
+                        cacheStatus = `<span class="cache-info cache-expired">○ 未缓存</span>`;
+                    }
+                    
+                    return `
                     <div class="sub-item">
                         <div class="sub-item-info">
                             <div class="url">${escapeHtml(s.url)}</div>
-                            <div class="meta">前缀: ${escapeHtml(s.prefix) || '无'} | <span class="status-badge ${s.isActive ? 'status-active' : 'status-inactive'}">${s.isActive ? '启用' : '禁用'}</span></div>
+                            <div class="meta">
+                                <span>前缀: ${escapeHtml(s.prefix) || '无'}</span>
+                                <span>缓存: ${cacheDuration === 0 ? '禁用' : cacheDuration + '分钟'}</span>
+                                ${cacheStatus}
+                                <span class="status-badge ${s.isActive ? 'status-active' : 'status-inactive'}">${s.isActive ? '启用' : '禁用'}</span>
+                            </div>
                         </div>
                         <div class="sub-item-actions">
-                            <button class="btn-edit" onclick="editImportSub('${s.id}', '${escapeHtml(s.url)}', '${escapeHtml(s.prefix)}', ${s.isActive})">编辑</button>
+                            <button class="btn-edit" onclick="editImportSub('${s.id}', '${escapeHtml(s.url)}', '${escapeHtml(s.prefix)}', ${s.isActive}, ${cacheDuration})">编辑</button>
                             <button class="btn-delete" onclick="deleteImportSub('${s.id}')">删除</button>
                         </div>
                     </div>
-                `).join('') || '<p style="color:#999">暂无导入订阅</p>'}
+                `}).join('') || '<p style="color:#999">暂无导入订阅</p>'}
             </div>
         </div>
         <div class="sub-section">
@@ -275,10 +301,20 @@ function addImportSub(groupId) {
             <div class="form-group">
                 <label>订阅URL</label>
                 <input type="url" id="import-url" required>
+                <small style="color:#999;font-size:12px;">支持订阅链接或单节点（vmess://、vless:// 等）</small>
             </div>
             <div class="form-group">
                 <label>节点前缀</label>
                 <input type="text" id="import-prefix" placeholder="可选">
+            </div>
+            <div class="form-group">
+                <label>缓存时间（分钟）</label>
+                <input type="number" id="import-cache" value="60" min="0" max="10080" required>
+                <small style="color:#999;font-size:12px;">
+                    设置为 0 禁用缓存（每次都获取最新数据）<br>
+                    仅对订阅URL生效，单节点不使用缓存<br>
+                    建议：稳定订阅120-180分钟，频繁更新15-30分钟
+                </small>
             </div>
             <div class="checkbox-group">
                 <input type="checkbox" id="import-active" checked>
@@ -297,7 +333,8 @@ async function submitAddImportSub(e, groupId) {
             exportSubGroupId: groupId,
             url: document.getElementById('import-url').value,
             prefix: document.getElementById('import-prefix').value,
-            isActive: document.getElementById('import-active').checked
+            isActive: document.getElementById('import-active').checked,
+            cacheDurationMinutes: parseInt(document.getElementById('import-cache').value)
         })
     });
     hideModal();
@@ -305,16 +342,25 @@ async function submitAddImportSub(e, groupId) {
     toggleGroup(groupId);
 }
 
-function editImportSub(id, url, prefix, isActive) {
+function editImportSub(id, url, prefix, isActive, cacheDurationMinutes = 60) {
     showModal('编辑导入订阅', `
         <form onsubmit="submitEditImportSub(event, '${id}')">
             <div class="form-group">
                 <label>订阅URL</label>
                 <input type="url" id="import-url" value="${escapeHtml(url)}" required>
+                <small style="color:#999;font-size:12px;">支持订阅链接或单节点（vmess://、vless:// 等）</small>
             </div>
             <div class="form-group">
                 <label>节点前缀</label>
                 <input type="text" id="import-prefix" value="${escapeHtml(prefix)}">
+            </div>
+            <div class="form-group">
+                <label>缓存时间（分钟）</label>
+                <input type="number" id="import-cache" value="${cacheDurationMinutes}" min="0" max="10080" required>
+                <small style="color:#999;font-size:12px;">
+                    设置为 0 禁用缓存（每次都获取最新数据）<br>
+                    修改配置会清空缓存并重新获取订阅内容
+                </small>
             </div>
             <div class="checkbox-group">
                 <input type="checkbox" id="import-active" ${isActive ? 'checked' : ''}>
@@ -333,7 +379,8 @@ async function submitEditImportSub(e, id) {
             id,
             url: document.getElementById('import-url').value,
             prefix: document.getElementById('import-prefix').value,
-            isActive: document.getElementById('import-active').checked
+            isActive: document.getElementById('import-active').checked,
+            cacheDurationMinutes: parseInt(document.getElementById('import-cache').value)
         })
     });
     hideModal();

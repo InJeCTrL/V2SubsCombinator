@@ -65,7 +65,9 @@ namespace V2SubsCombinator.Services
                     Id = s.Id,
                     Url = s.Url,
                     Prefix = s.Prefix,
-                    IsActive = s.IsActive
+                    IsActive = s.IsActive,
+                    CacheDurationMinutes = s.CacheDurationMinutes,
+                    CacheExpiresAt = s.CacheExpiresAt
                 })],
                 ExportSubDataList = [.. exportSubs.Select(s => new ExportSubData
                 {
@@ -121,7 +123,8 @@ namespace V2SubsCombinator.Services
                 Prefix = request.Prefix,
                 IsActive = request.IsActive,
                 ExportSubGroupId = request.ExportSubGroupId,
-                UserId = request.UserId
+                UserId = request.UserId,
+                CacheDurationMinutes = request.CacheDurationMinutes
             };
 
             await _dbContext.ImportSubs.InsertOneAsync(newImportSub);
@@ -281,6 +284,11 @@ namespace V2SubsCombinator.Services
                 updates.Add(updateDef.Set(s => s.Prefix, request.Prefix));
             if (request.IsActive.HasValue)
                 updates.Add(updateDef.Set(s => s.IsActive, request.IsActive.Value));
+            if (request.CacheDurationMinutes.HasValue)
+                updates.Add(updateDef.Set(s => s.CacheDurationMinutes, request.CacheDurationMinutes.Value));
+
+            updates.Add(updateDef.Set(s => s.CachedNodes, null));
+            updates.Add(updateDef.Set(s => s.CacheExpiresAt, null));
 
             if (updates.Count == 0)
                 return new ImportSubResult { Success = false };
@@ -312,9 +320,58 @@ namespace V2SubsCombinator.Services
                 .Find(s => group.ImportSubIds.Contains(s.Id) && s.IsActive)
                 .ToListAsync();
 
-            var subscriptions = importSubs.Select(s => (s.Url, s.Prefix));
+            var now = DateTime.UtcNow;
+            var subscriptionsWithCache = new List<(string url, string prefix, List<SupportedNode>? cachedNodes)>();
+            var subsToUpdate = new List<ImportSub>();
 
-            return await V2SubsHelper.FetchAndCombineSubscriptionsAsync(subscriptions, request.IsClash);
+            foreach (var sub in importSubs)
+            {
+                var isSubscriptionUrl = !SupportedNetworkNodeHelper.TryGetNodeType(sub.Url, out _);
+                
+                // 单节点不使用缓存
+                if (!isSubscriptionUrl)
+                {
+                    subscriptionsWithCache.Add((sub.Url, sub.Prefix, null));
+                    continue;
+                }
+
+                // 如果缓存被禁用（CacheDurationMinutes = 0），直接获取数据，不写库
+                if (!sub.IsCacheEnabled)
+                {
+                    var nodes = await V2SubsHelper.FetchSubscriptionNodesAsync(sub.Url, sub.Prefix);
+                    subscriptionsWithCache.Add((sub.Url, sub.Prefix, nodes));
+                    continue; // 跳过缓存更新，不会写库
+                }
+
+                // 检查缓存是否有效
+                if (sub.CachedNodes != null && sub.CacheExpiresAt.HasValue && sub.CacheExpiresAt.Value > now)
+                {
+                    // 使用缓存
+                    subscriptionsWithCache.Add((sub.Url, sub.Prefix, sub.CachedNodes));
+                }
+                else
+                {
+                    // 缓存过期或不存在，获取新数据并标记需要更新
+                    var nodes = await V2SubsHelper.FetchSubscriptionNodesAsync(sub.Url, sub.Prefix);
+                    subscriptionsWithCache.Add((sub.Url, sub.Prefix, nodes));
+                    
+                    sub.CachedNodes = nodes;
+                    sub.CacheExpiresAt = now.AddMinutes(sub.CacheDurationMinutes);
+                    subsToUpdate.Add(sub); // 添加到更新列表
+                }
+            }
+
+            // 批量更新缓存到数据库（仅包含启用缓存的订阅）
+            foreach (var sub in subsToUpdate)
+            {
+                var update = Builders<ImportSub>.Update
+                    .Set(s => s.CachedNodes, sub.CachedNodes)
+                    .Set(s => s.CacheExpiresAt, sub.CacheExpiresAt);
+                
+                await _dbContext.ImportSubs.UpdateOneAsync(s => s.Id == sub.Id, update);
+            }
+
+            return await V2SubsHelper.FetchAndCombineSubscriptionsAsync(subscriptionsWithCache, request.IsClash);
         }
     }
 }

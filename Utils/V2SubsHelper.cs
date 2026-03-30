@@ -220,14 +220,50 @@ namespace V2SubsCombinator.Utils
             return SupportedNetworkNodeHelper.EncodeBase64(string.Join("\n", urls));
         }
 
+        public static async Task<List<SupportedNode>> FetchSubscriptionNodesAsync(string url, string remarkPrefix)
+        {
+            var nodes = new List<SupportedNode>();
+
+            if (SupportedNetworkNodeHelper.TryGetNodeType(url, out _))
+            {
+                return nodes;
+            }
+
+            for (var retry = 0; retry < 5; retry++)
+            {
+                try
+                {
+                    var content = await httpClient.GetStringAsync(url);
+
+                    if (IsClashYaml(content))
+                    {
+                        nodes.AddRange(ParseYamlToNodes(content, remarkPrefix));
+                    }
+                    else
+                    {
+                        nodes.AddRange(ParseV2rayToNodes(content, remarkPrefix));
+                    }
+                    break;
+                }
+                catch { }
+            }
+            return nodes;
+        }
+
         public static async Task<string> FetchAndCombineSubscriptionsAsync(
-            IEnumerable<(string url, string remarkPrefix)> subscriptions,
+            IEnumerable<(string url, string remarkPrefix, List<SupportedNode>? cachedNodes)> subscriptions,
             bool isClash)
         {
             var subList = subscriptions.ToList();
             var tasks = subList.Select(async sub =>
             {
-                var (url, remarkPrefix) = sub;
+                var (url, remarkPrefix, cachedNodes) = sub;
+                
+                if (cachedNodes != null && cachedNodes.Count > 0)
+                {
+                    return cachedNodes;
+                }
+
                 var nodes = new List<SupportedNode>();
 
                 if (SupportedNetworkNodeHelper.TryGetNodeType(url, out _))

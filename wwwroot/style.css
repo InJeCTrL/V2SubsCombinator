@@ -222,6 +222,28 @@ main {
     color: #999;
     font-size: 12px;
     margin-top: 4px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.cache-info {
+    color: #666;
+    background: #e8f5e9;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+}
+
+.cache-expired {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.cache-disabled {
+    background: #f8d7da;
+    color: #721c24;
 }
 
 .sub-item-actions {
@@ -294,6 +316,12 @@ main {
     border: 1px solid #ddd;
     border-radius: 8px;
     font-size: 14px;
+}
+
+#modal-body small {
+    display: block;
+    margin-top: 4px;
+    line-height: 1.4;
 }
 
 #modal-body button[type="submit"] {

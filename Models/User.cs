@@ -16,8 +16,5 @@ namespace V2SubsCombinator.Models
         [BsonElement("passwordHash")]
         [BsonRequired]
         public required string PasswordHash { get; set; }
-
-        [BsonElement("exportSubGroupIds")]
-        public List<string> ExportSubGroupIds { get; set; } = [];
     }
 }
