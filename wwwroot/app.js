@@ -309,7 +309,7 @@ function addImportSub(groupId) {
             </div>
             <div class="form-group">
                 <label>缓存时间（分钟）</label>
-                <input type="number" id="import-cache" value="60" min="0" max="10080" required>
+                <input type="number" id="import-cache" value="60" min="0" required>
                 <small style="color:#999;font-size:12px;">
                     设置为 0 禁用缓存（每次都获取最新数据）<br>
                     仅对订阅URL生效，单节点不使用缓存<br>
@@ -356,7 +356,7 @@ function editImportSub(id, url, prefix, isActive, cacheDurationMinutes = 60) {
             </div>
             <div class="form-group">
                 <label>缓存时间（分钟）</label>
-                <input type="number" id="import-cache" value="${cacheDurationMinutes}" min="0" max="10080" required>
+                <input type="number" id="import-cache" value="${cacheDurationMinutes}" min="0" required>
                 <small style="color:#999;font-size:12px;">
                     设置为 0 禁用缓存（每次都获取最新数据）<br>
                     修改配置会清空缓存并重新获取订阅内容
