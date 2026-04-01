@@ -11,16 +11,16 @@ public class UpdateImportSubRequest : SubscriptionRequestBase
         public string? Url { get; set; }
         public string? Prefix { get; set; }
         public bool? IsActive { get; set; }
-        public int? CacheDurationMinutes { get; set; }
+        public string? FixedContent { get; set; }
     }
 
 public class AddImportSubRequest : SubscriptionRequestBase
     {
         public required string ExportSubGroupId { get; set; }
-        public required string Url { get; set; }
+        public string Url { get; set; } = string.Empty;
         public string Prefix { get; set; } = string.Empty;
         public bool IsActive { get; set; } = true;
-        public int CacheDurationMinutes { get; set; } = 60;
+        public string? FixedContent { get; set; }
     }
 
 public class ImportSubData
@@ -28,9 +28,8 @@ public class ImportSubData
         public required string Id { get; set; }
         public string Prefix { get; set; } = string.Empty;
         public required bool IsActive { get; set; }
-        public required string Url { get; set; }
-        public int CacheDurationMinutes { get; set; } = 60;
-        public DateTime? CacheExpiresAt { get; set; }
+        public string Url { get; set; } = string.Empty;
+        public string? FixedContent { get; set; }
     }
 
     public class ImportSubResult

@@ -220,52 +220,38 @@ namespace V2SubsCombinator.Utils
             return SupportedNetworkNodeHelper.EncodeBase64(string.Join("\n", urls));
         }
 
-        public static async Task<List<SupportedNode>> FetchSubscriptionNodesAsync(string url, string remarkPrefix)
-        {
-            var nodes = new List<SupportedNode>();
-
-            if (SupportedNetworkNodeHelper.TryGetNodeType(url, out _))
-            {
-                return nodes;
-            }
-
-            for (var retry = 0; retry < 5; retry++)
-            {
-                try
-                {
-                    var content = await httpClient.GetStringAsync(url);
-
-                    if (IsClashYaml(content))
-                    {
-                        nodes.AddRange(ParseYamlToNodes(content, remarkPrefix));
-                    }
-                    else
-                    {
-                        nodes.AddRange(ParseV2rayToNodes(content, remarkPrefix));
-                    }
-                    break;
-                }
-                catch { }
-            }
-            return nodes;
-        }
 
         public static async Task<string> FetchAndCombineSubscriptionsAsync(
-            IEnumerable<(string url, string remarkPrefix, List<SupportedNode>? cachedNodes)> subscriptions,
+            IEnumerable<(string url, string remarkPrefix, string? fixedContent)> subscriptions,
             bool isClash)
         {
             var subList = subscriptions.ToList();
             var tasks = subList.Select(async sub =>
             {
-                var (url, remarkPrefix, cachedNodes) = sub;
-                
-                if (cachedNodes != null && cachedNodes.Count > 0)
-                {
-                    return cachedNodes;
-                }
-
+                var (url, remarkPrefix, fixedContent) = sub;
                 var nodes = new List<SupportedNode>();
 
+                // 如果有固定内容，直接解析
+                if (!string.IsNullOrEmpty(fixedContent))
+                {
+                    if (IsClashYaml(fixedContent))
+                    {
+                        nodes.AddRange(ParseYamlToNodes(fixedContent, remarkPrefix));
+                    }
+                    else
+                    {
+                        nodes.AddRange(ParseV2rayToNodes(fixedContent, remarkPrefix));
+                    }
+                    return nodes;
+                }
+
+                // 如果没有 URL，返回空
+                if (string.IsNullOrEmpty(url))
+                {
+                    return nodes;
+                }
+
+                // 单节点处理
                 if (SupportedNetworkNodeHelper.TryGetNodeType(url, out _))
                 {
                     var node = ParseSingleNode(url, remarkPrefix);
@@ -273,6 +259,7 @@ namespace V2SubsCombinator.Utils
                     return nodes;
                 }
 
+                // 从 URL 获取订阅
                 for (var retry = 0; retry < 5; retry++)
                 {
                     try

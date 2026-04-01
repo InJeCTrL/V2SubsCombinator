@@ -16,6 +16,12 @@ BsonClassMap.RegisterClassMap<User>(cm =>
     cm.SetIgnoreExtraElements(true);
 });
 
+BsonClassMap.RegisterClassMap<ImportSub>(cm =>
+{
+    cm.AutoMap();
+    cm.SetIgnoreExtraElements(true);
+});
+
 var jwtHelper = new JWTHelper(builder.Configuration);
 
 builder.Services.AddAuthentication(options =>

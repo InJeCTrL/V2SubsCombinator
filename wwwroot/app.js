@@ -137,39 +137,21 @@ async function toggleGroup(id) {
             </h4>
             <div class="sub-list">
                 ${(group.importSubData || []).map(s => {
-                    const now = new Date();
-                    const expiresAt = s.cacheExpiresAt ? new Date(s.cacheExpiresAt) : null;
-                    const isExpired = expiresAt && expiresAt <= now;
-                    const isCached = expiresAt && expiresAt > now;
-                    // 兼容旧数据：如果 cacheDurationMinutes 不存在，默认为 60
-                    const cacheDuration = s.cacheDurationMinutes !== undefined ? s.cacheDurationMinutes : 60;
-                    const isCacheDisabled = cacheDuration === 0;
-                    
-                    let cacheStatus = '';
-                    if (isCacheDisabled) {
-                        cacheStatus = `<span class="cache-info cache-disabled">✗ 缓存已禁用</span>`;
-                    } else if (isCached) {
-                        const minutesLeft = Math.floor((expiresAt - now) / 60000);
-                        cacheStatus = `<span class="cache-info">✓ 已缓存 (${minutesLeft}分钟后过期)</span>`;
-                    } else if (isExpired) {
-                        cacheStatus = `<span class="cache-info cache-expired">⚠ 缓存已过期</span>`;
-                    } else {
-                        cacheStatus = `<span class="cache-info cache-expired">○ 未缓存</span>`;
-                    }
+                    const isFixed = s.fixedContent && s.fixedContent.length > 0;
+                    const displayUrl = isFixed ? '(固定内容)' : (s.url || '(未设置)');
                     
                     return `
                     <div class="sub-item">
                         <div class="sub-item-info">
-                            <div class="url">${escapeHtml(s.url)}</div>
+                            <div class="url">${escapeHtml(displayUrl)}</div>
                             <div class="meta">
                                 <span>前缀: ${escapeHtml(s.prefix) || '无'}</span>
-                                <span>缓存: ${cacheDuration === 0 ? '禁用' : cacheDuration + '分钟'}</span>
-                                ${cacheStatus}
+                                <span class="status-badge ${isFixed ? 'status-active' : 'status-inactive'}">${isFixed ? '固定内容' : 'URL订阅'}</span>
                                 <span class="status-badge ${s.isActive ? 'status-active' : 'status-inactive'}">${s.isActive ? '启用' : '禁用'}</span>
                             </div>
                         </div>
                         <div class="sub-item-actions">
-                            <button class="btn-edit" onclick="editImportSub('${s.id}', '${escapeHtml(s.url)}', '${escapeHtml(s.prefix)}', ${s.isActive}, ${cacheDuration})">编辑</button>
+                            <button class="btn-edit" onclick="editImportSub('${s.id}', '${escapeHtml(s.url)}', '${escapeHtml(s.prefix)}', ${s.isActive}, ${escapeHtml(JSON.stringify(s.fixedContent || ''))})">编辑</button>
                             <button class="btn-delete" onclick="deleteImportSub('${s.id}')">删除</button>
                         </div>
                     </div>
@@ -299,22 +281,24 @@ function addImportSub(groupId) {
     showModal('添加导入订阅', `
         <form onsubmit="submitAddImportSub(event, '${groupId}')">
             <div class="form-group">
+                <label>
+                    <input type="radio" name="import-type" value="url" checked onchange="toggleImportType()"> 订阅URL
+                    <input type="radio" name="import-type" value="fixed" onchange="toggleImportType()" style="margin-left:20px"> 固定内容
+                </label>
+            </div>
+            <div class="form-group" id="url-input-group">
                 <label>订阅URL</label>
-                <input type="url" id="import-url" required>
+                <input type="url" id="import-url" placeholder="https://...">
                 <small style="color:#999;font-size:12px;">支持订阅链接或单节点（vmess://、vless:// 等）</small>
+            </div>
+            <div class="form-group" id="fixed-input-group" style="display:none">
+                <label>订阅内容</label>
+                <textarea id="import-fixed" rows="10" placeholder="粘贴 v2ray base64 或 clash yaml 内容"></textarea>
+                <small style="color:#999;font-size:12px;">支持 v2ray base64 格式或 clash yaml 格式</small>
             </div>
             <div class="form-group">
                 <label>节点前缀</label>
                 <input type="text" id="import-prefix" placeholder="可选">
-            </div>
-            <div class="form-group">
-                <label>缓存时间（分钟）</label>
-                <input type="number" id="import-cache" value="60" min="0" required>
-                <small style="color:#999;font-size:12px;">
-                    设置为 0 禁用缓存（每次都获取最新数据）<br>
-                    仅对订阅URL生效，单节点不使用缓存<br>
-                    建议：稳定订阅120-180分钟，频繁更新15-30分钟
-                </small>
             </div>
             <div class="checkbox-group">
                 <input type="checkbox" id="import-active" checked>
@@ -325,16 +309,23 @@ function addImportSub(groupId) {
     `);
 }
 
+function toggleImportType() {
+    const type = document.querySelector('input[name="import-type"]:checked').value;
+    document.getElementById('url-input-group').style.display = type === 'url' ? 'block' : 'none';
+    document.getElementById('fixed-input-group').style.display = type === 'fixed' ? 'block' : 'none';
+}
+
 async function submitAddImportSub(e, groupId) {
     e.preventDefault();
+    const type = document.querySelector('input[name="import-type"]:checked').value;
     await api('/subscription/import-subs', {
         method: 'POST',
         body: JSON.stringify({
             exportSubGroupId: groupId,
-            url: document.getElementById('import-url').value,
+            url: type === 'url' ? document.getElementById('import-url').value : '',
             prefix: document.getElementById('import-prefix').value,
             isActive: document.getElementById('import-active').checked,
-            cacheDurationMinutes: parseInt(document.getElementById('import-cache').value)
+            fixedContent: type === 'fixed' ? document.getElementById('import-fixed').value : null
         })
     });
     hideModal();
@@ -342,25 +333,38 @@ async function submitAddImportSub(e, groupId) {
     toggleGroup(groupId);
 }
 
-function editImportSub(id, url, prefix, isActive, cacheDurationMinutes = 60) {
+function editImportSub(id, url, prefix, isActive, fixedContentJson) {
+    let fixedContent = '';
+    try {
+        fixedContent = fixedContentJson ? JSON.parse(fixedContentJson) : '';
+    } catch (e) {
+        fixedContent = fixedContentJson || '';
+    }
+    
+    const hasFixed = fixedContent && fixedContent.length > 0;
+    const hasUrl = url && url.length > 0;
+    
     showModal('编辑导入订阅', `
         <form onsubmit="submitEditImportSub(event, '${id}')">
             <div class="form-group">
+                <label>
+                    <input type="radio" name="import-type" value="url" ${!hasFixed ? 'checked' : ''} onchange="toggleImportType()"> 订阅URL
+                    <input type="radio" name="import-type" value="fixed" ${hasFixed ? 'checked' : ''} onchange="toggleImportType()" style="margin-left:20px"> 固定内容
+                </label>
+            </div>
+            <div class="form-group" id="url-input-group" style="display:${!hasFixed ? 'block' : 'none'}">
                 <label>订阅URL</label>
-                <input type="url" id="import-url" value="${escapeHtml(url)}" required>
+                <input type="url" id="import-url" value="${escapeHtml(url)}" placeholder="https://...">
                 <small style="color:#999;font-size:12px;">支持订阅链接或单节点（vmess://、vless:// 等）</small>
+            </div>
+            <div class="form-group" id="fixed-input-group" style="display:${hasFixed ? 'block' : 'none'}">
+                <label>订阅内容</label>
+                <textarea id="import-fixed" rows="10" placeholder="粘贴 v2ray base64 或 clash yaml 内容">${escapeHtml(fixedContent)}</textarea>
+                <small style="color:#999;font-size:12px;">支持 v2ray base64 格式或 clash yaml 格式</small>
             </div>
             <div class="form-group">
                 <label>节点前缀</label>
                 <input type="text" id="import-prefix" value="${escapeHtml(prefix)}">
-            </div>
-            <div class="form-group">
-                <label>缓存时间（分钟）</label>
-                <input type="number" id="import-cache" value="${cacheDurationMinutes}" min="0" required>
-                <small style="color:#999;font-size:12px;">
-                    设置为 0 禁用缓存（每次都获取最新数据）<br>
-                    修改配置会清空缓存并重新获取订阅内容
-                </small>
             </div>
             <div class="checkbox-group">
                 <input type="checkbox" id="import-active" ${isActive ? 'checked' : ''}>
@@ -373,14 +377,15 @@ function editImportSub(id, url, prefix, isActive, cacheDurationMinutes = 60) {
 
 async function submitEditImportSub(e, id) {
     e.preventDefault();
+    const type = document.querySelector('input[name="import-type"]:checked').value;
     await api('/subscription/import-subs', {
         method: 'PUT',
         body: JSON.stringify({
             id,
-            url: document.getElementById('import-url').value,
+            url: type === 'url' ? document.getElementById('import-url').value : '',
             prefix: document.getElementById('import-prefix').value,
             isActive: document.getElementById('import-active').checked,
-            cacheDurationMinutes: parseInt(document.getElementById('import-cache').value)
+            fixedContent: type === 'fixed' ? document.getElementById('import-fixed').value : null
         })
     });
     hideModal();

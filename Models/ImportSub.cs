@@ -10,8 +10,7 @@ public class ImportSub
             public string Id { get; set; } = null!;
 
             [BsonElement("url")]
-            [BsonRequired]
-            public required string Url { get; set; }
+            public string Url { get; set; } = string.Empty;
 
             [BsonElement("prefix")]
             public string Prefix { get; set; } = string.Empty;
@@ -27,16 +26,10 @@ public class ImportSub
             [BsonRequired]
             public required string UserId { get; set; }
 
-            [BsonElement("cacheDurationMinutes")]
-            public int CacheDurationMinutes { get; set; } = 60;
-
-            [BsonElement("cachedNodes")]
-            public List<SupportedNode>? CachedNodes { get; set; }
-
-            [BsonElement("cacheExpiresAt")]
-            public DateTime? CacheExpiresAt { get; set; }
+            [BsonElement("fixedContent")]
+            public string? FixedContent { get; set; }
 
             [BsonIgnore]
-            public bool IsCacheEnabled => CacheDurationMinutes > 0;
+            public bool IsFixedContent => !string.IsNullOrEmpty(FixedContent);
         }
 }
