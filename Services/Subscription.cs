@@ -73,7 +73,9 @@ namespace V2SubsCombinator.Services
                     Id = s.Id,
                     Suffix = s.Suffix,
                     Remark = s.Remark,
-                    IsActive = s.IsActive
+                    IsActive = s.IsActive,
+                    DailyAccessStats = s.DailyAccessStats,
+                    TodayAccessCount = s.TodayAccessCount
                 })]
             };
 
@@ -304,6 +306,13 @@ namespace V2SubsCombinator.Services
 
             if (exportSub == null)
                 return string.Empty;
+
+            // 记录访问统计
+            var today = DateTime.UtcNow.ToString("yyyy-MM-dd");
+            var currentCount = exportSub.DailyAccessStats.TryGetValue(today, out var count) ? count : 0;
+
+            var update = Builders<ExportSub>.Update.Set($"dailyAccessStats.{today}", currentCount + 1);
+            await _dbContext.ExportSubs.UpdateOneAsync(s => s.Id == exportSub.Id, update);
 
             var group = await _dbContext.ExportSubGroups
                 .Find(g => g.Id == exportSub.ExportSubGroupId && g.IsActive)

@@ -164,11 +164,24 @@ async function toggleGroup(id) {
                 <button class="btn-add" onclick="addExportSub('${id}')">+ 添加</button>
             </h4>
             <div class="sub-list">
-                ${(group.exportSubDataList || []).map(s => `
+                ${(group.exportSubDataList || []).map(s => {
+                    const todayCount = s.todayAccessCount || 0;
+                    const stats = s.dailyAccessStats || {};
+                    const dates = Object.keys(stats).sort().reverse().slice(0, 7);
+                    const last7Days = dates.map(date => `${date}: ${stats[date]}次`).join(', ');
+
+                    return `
                     <div class="sub-item">
                         <div class="sub-item-info">
                             <div class="url">${location.origin}/sub/${escapeHtml(s.suffix)}</div>
-                            <div class="meta">后缀: ${escapeHtml(s.suffix)} | 备注: ${escapeHtml(s.remark) || '无'} | <span class="status-badge ${s.isActive ? 'status-active' : 'status-inactive'}">${s.isActive ? '启用' : '禁用'}</span></div>
+                            <div class="meta">
+                                后缀: ${escapeHtml(s.suffix)} | 备注: ${escapeHtml(s.remark) || '无'} | 
+                                <span class="status-badge ${s.isActive ? 'status-active' : 'status-inactive'}">${s.isActive ? '启用' : '禁用'}</span>
+                            </div>
+                            <div class="access-stats">
+                                <span class="today-count">今日访问: <strong>${todayCount}</strong> 次</span>
+                                ${dates.length > 0 ? `<span class="recent-stats" title="${last7Days}">最近7天: ${dates.length}天有访问</span>` : ''}
+                            </div>
                         </div>
                         <div class="sub-item-actions">
                             <button class="btn-copy" onclick="copyUrl('${escapeHtml(s.suffix)}')">复制</button>
@@ -176,7 +189,7 @@ async function toggleGroup(id) {
                             <button class="btn-delete" onclick="deleteExportSub('${s.id}')">删除</button>
                         </div>
                     </div>
-                `).join('') || '<p style="color:#999">暂无导出订阅</p>'}
+                `}).join('') || '<p style="color:#999">暂无导出订阅</p>'}
             </div>
         </div>
     `;
@@ -343,7 +356,7 @@ function editImportSub(id, url, prefix, isActive, fixedContentJson) {
     
     const hasFixed = fixedContent && fixedContent.length > 0;
     const hasUrl = url && url.length > 0;
-    
+
     showModal('编辑导入订阅', `
         <form onsubmit="submitEditImportSub(event, '${id}')">
             <div class="form-group">

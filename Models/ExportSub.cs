@@ -26,6 +26,19 @@ namespace V2SubsCombinator.Models
         [BsonElement("userId")]
         [BsonRequired]
         public required string UserId { get; set; }
+
+        [BsonElement("dailyAccessStats")]
+        public Dictionary<string, int> DailyAccessStats { get; set; } = new();
+
+        [BsonIgnore]
+        public int TodayAccessCount
+        {
+            get
+            {
+                var today = DateTime.UtcNow.ToString("yyyy-MM-dd");
+                return DailyAccessStats.TryGetValue(today, out var count) ? count : 0;
+            }
+        }
     }
 
     public class ExportSubGroup

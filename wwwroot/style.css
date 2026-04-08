@@ -228,6 +228,33 @@ main {
     align-items: center;
 }
 
+.access-stats {
+    margin-top: 6px;
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+}
+
+.today-count {
+    color: #27ae60;
+    background: #e8f5e9;
+    padding: 3px 10px;
+    border-radius: 4px;
+}
+
+.today-count strong {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.recent-stats {
+    color: #666;
+    background: #f0f0f0;
+    padding: 3px 10px;
+    border-radius: 4px;
+    cursor: help;
+}
+
 .cache-info {
     color: #666;
     background: #e8f5e9;

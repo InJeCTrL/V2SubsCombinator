@@ -33,6 +33,8 @@ namespace V2SubsCombinator.DTOs
         public required string Suffix { get; set; }
         public required bool IsActive { get; set; }
         public string Remark { get; set; } = string.Empty;
+        public Dictionary<string, int> DailyAccessStats { get; set; } = new();
+        public int TodayAccessCount { get; set; }
     }
 
     public class ExportSubResult
