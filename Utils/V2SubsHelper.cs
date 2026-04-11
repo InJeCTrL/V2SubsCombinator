@@ -6,16 +6,11 @@ namespace V2SubsCombinator.Utils
 {
     public class ClashConfig
     {
-        [YamlMember(Alias = "tcp-concurrent", ApplyNamingConventions = false)]
-        public bool TcpConcurrent { get; set; } = true;
-
-        public string Secret { get; set; } = "";
-
-        [YamlMember(Alias = "global-client-fingerprint", ApplyNamingConventions = false)]
-        public string GlobalClientFingerprint { get; set; } = "chrome";
+        [YamlMember(Alias = "mixed-port", ApplyNamingConventions = false)]
+        public int MixedPort { get; set; } = 7890;
 
         [YamlMember(Alias = "allow-lan", ApplyNamingConventions = false)]
-        public bool AllowLan { get; set; } = false;
+        public bool AllowLan { get; set; } = true;
 
         [YamlMember(Alias = "bind-address", ApplyNamingConventions = false)]
         public string BindAddress { get; set; } = "*";
@@ -27,18 +22,6 @@ namespace V2SubsCombinator.Utils
 
         [YamlMember(Alias = "external-controller", ApplyNamingConventions = false)]
         public string ExternalController { get; set; } = "127.0.0.1:9090";
-
-        [YamlMember(Alias = "find-process-mode", ApplyNamingConventions = false)]
-        public string FindProcessMode { get; set; } = "always";
-
-        [YamlMember(Alias = "keep-alive-interval", ApplyNamingConventions = false)]
-        public int KeepAliveInterval { get; set; } = 30;
-
-        [YamlMember(Alias = "geo-auto-update", ApplyNamingConventions = false)]
-        public bool GeoAutoUpdate { get; set; } = false;
-
-        [YamlMember(Alias = "unified-delay", ApplyNamingConventions = false)]
-        public bool UnifiedDelay { get; set; } = true;
 
         public DnsConfig? Dns { get; set; }
 
@@ -53,7 +36,9 @@ namespace V2SubsCombinator.Utils
     public class DnsConfig
     {
         public bool Enable { get; set; } = true;
-        public string Listen { get; set; } = "127.0.0.1:53";
+        
+        [YamlMember(Alias = "ipv6", ApplyNamingConventions = false)]
+        public bool Ipv6 { get; set; } = false;
 
         [YamlMember(Alias = "default-nameserver", ApplyNamingConventions = false)]
         public List<string>? DefaultNameserver { get; set; }
@@ -63,11 +48,17 @@ namespace V2SubsCombinator.Utils
 
         [YamlMember(Alias = "fake-ip-range", ApplyNamingConventions = false)]
         public string FakeIpRange { get; set; } = "198.18.0.1/16";
+        
+        [YamlMember(Alias = "use-hosts", ApplyNamingConventions = false)]
+        public bool UseHosts { get; set; } = true;
+        
+        [YamlMember(Alias = "respect-rules", ApplyNamingConventions = false)]
+        public bool RespectRules { get; set; } = true;
+        
+        [YamlMember(Alias = "proxy-server-nameserver", ApplyNamingConventions = false)]
+        public List<string>? ProxyServerNameserver { get; set; }
 
         public List<string>? Nameserver { get; set; }
-
-        [YamlMember(Alias = "nameserver-policy", ApplyNamingConventions = false)]
-        public Dictionary<string, string>? NameserverPolicy { get; set; }
 
         public List<string>? Fallback { get; set; }
 
@@ -78,7 +69,15 @@ namespace V2SubsCombinator.Utils
     public class FallbackFilterConfig
     {
         public bool Geoip { get; set; } = true;
+        
+        [YamlMember(Alias = "geoip-code", ApplyNamingConventions = false)]
+        public string GeoipCode { get; set; } = "CN";
+        
+        public List<string>? Geosite { get; set; }
+        
         public List<string>? Ipcidr { get; set; }
+        
+        public List<string>? Domain { get; set; }
     }
 
     public class ProxyGroup
@@ -151,6 +150,16 @@ namespace V2SubsCombinator.Utils
         private static string GenerateYaml(List<SupportedNode> nodes)
         {
             var validNodes = nodes.Where(n => !string.IsNullOrEmpty(n.Server) && n.Port != null).ToList();
+            
+            // 清理默认值，使其在 YAML 中被省略
+            foreach (var node in validNodes)
+            {
+                // 如果 network 是默认值 tcp，设置为 null 以省略该字段
+                if (node.Network == "tcp") node.Network = null;
+                
+                // 如果 flow 是空字符串，保持为空字符串（原始订阅中有 flow: ''）
+            }
+            
             var proxyNames = validNodes.Select(n => n.Name).ToList();
 
             var config = new ClashConfig
@@ -158,36 +167,22 @@ namespace V2SubsCombinator.Utils
                 Dns = new DnsConfig
                 {
                     Enable = true,
-                    Listen = "127.0.0.1:53",
-                    DefaultNameserver = ["114.114.114.114", "223.5.5.5", "8.8.8.8"],
+                    Ipv6 = false,
+                    DefaultNameserver = ["223.5.5.5", "119.29.29.29", "114.114.114.114"],
                     EnhancedMode = "fake-ip",
                     FakeIpRange = "198.18.0.1/16",
-                    Nameserver =
-                    [
-                        "https://doh.pub/dns-query",
-                        "https://dns.alidns.com/dns-query",
-                        "https://1.1.1.1/dns-query",
-                        "223.5.5.5",
-                        "119.29.29.29",
-                        "114.114.114.114",
-                        "tcp://223.5.5.5"
-                    ],
-                    NameserverPolicy = new Dictionary<string, string>
-                    {
-                        ["*.digital-nvme.com"] = "8.138.94.132:8053",
-                        ["geoip:cn"] = "223.5.5.5,114.114.114.114,119.29.29.29"
-                    },
-                    Fallback =
-                    [
-                        "https://doh.dns.sb/dns-query",
-                        "https://dns.cloudflare.com/dns-query",
-                        "https://dns.twnic.tw/dns-query",
-                        "tls://8.8.4.4:853"
-                    ],
+                    UseHosts = true,
+                    RespectRules = true,
+                    ProxyServerNameserver = ["223.5.5.5", "119.29.29.29", "114.114.114.114"],
+                    Nameserver = ["223.5.5.5", "119.29.29.29", "114.114.114.114"],
+                    Fallback = ["1.1.1.1", "8.8.8.8"],
                     FallbackFilter = new FallbackFilterConfig
                     {
                         Geoip = true,
-                        Ipcidr = ["240.0.0.0/4", "0.0.0.0/32"]
+                        GeoipCode = "CN",
+                        Geosite = ["gfw"],
+                        Ipcidr = ["240.0.0.0/4"],
+                        Domain = ["+.google.com", "+.facebook.com", "+.youtube.com"]
                     }
                 },
                 Proxies = validNodes,

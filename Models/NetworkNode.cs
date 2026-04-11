@@ -138,17 +138,33 @@ namespace V2SubsCombinator.Models
 
                 var query = HttpUtility.ParseQueryString(uri.Query);
                 Network = query["type"] ?? "tcp";
-                Flow = query["flow"];
-                Sni = query["sni"];
-                Servername = query["host"];
+                Flow = query["flow"] ?? "";
+                
+                var sniValue = query["sni"];
+                var hostValue = query["host"];
+                
                 ClientFingerprint = query["fp"];
+                
+                // 设置 VLESS 默认值
+                Encryption = query["encryption"] ?? "none";
+                Udp = true;
+                SkipCertVerify = false;
 
                 var security = query["security"];
                 Tls = security == "tls" || security == "reality";
 
                 if (security == "reality")
                 {
+                    // Reality 协议：只使用 servername，不设置 sni
+                    Servername = !string.IsNullOrEmpty(hostValue) ? hostValue : sniValue;
+                    Sni = null;  // Reality 不使用 sni 字段
                     RealityOpts = new RealityOpts { PublicKey = query["pbk"], ShortId = query["sid"] };
+                }
+                else
+                {
+                    // 普通 TLS：使用 sni 和 servername
+                    Sni = sniValue;
+                    Servername = !string.IsNullOrEmpty(hostValue) ? hostValue : sniValue;
                 }
 
                 var alpn = query["alpn"];
@@ -436,44 +452,70 @@ namespace V2SubsCombinator.Models
         public string Type { get; set; } = string.Empty;
         public string? Server { get; set; }
         public int? Port { get; set; }
-        public string? Password { get; set; }
-        public string? Protocol { get; set; }
         public string? Uuid { get; set; }
-        [YamlMember(Alias = "alterId", ApplyNamingConventions = false)]
-        public int? AlterId { get; set; }
-        public string? Cipher { get; set; }
-        public string? Network { get; set; }
-        public string? Flow { get; set; }
+        public string? Password { get; set; }
+        
+        [YamlMember(Alias = "encryption", ApplyNamingConventions = false)]
+        public string? Encryption { get; set; }
+        
+        public bool? Udp { get; set; }
         public bool? Tls { get; set; }
+        
+        [YamlMember(Alias = "skip-cert-verify", ApplyNamingConventions = false)]
+        public bool? SkipCertVerify { get; set; }
+        
+        public string? Flow { get; set; }
+        
+        [YamlMember(Alias = "client-fingerprint", ApplyNamingConventions = false)]
+        public string? ClientFingerprint { get; set; }
+        
         public string? Servername { get; set; }
+        
+        [YamlMember(Alias = "reality-opts", ApplyNamingConventions = false)]
+        public RealityOpts? RealityOpts { get; set; }
+        
+        public string? Network { get; set; }
         public string? Sni { get; set; }
         public List<string>? Alpn { get; set; }
-        public string? ClientFingerprint { get; set; }
-        public bool? SkipCertVerify { get; set; }
-        public bool? Udp { get; set; }
+        public string? Protocol { get; set; }
+        
+        [YamlMember(Alias = "alterId", ApplyNamingConventions = false)]
+        public int? AlterId { get; set; }
+        
+        public string? Cipher { get; set; }
         public string? Obfs { get; set; }
         public string? ProtocolParam { get; set; }
         public string? ObfsParam { get; set; }
-        public RealityOpts? RealityOpts { get; set; }
+        
+        [YamlMember(Alias = "ws-opts", ApplyNamingConventions = false)]
         public WsOpts? WsOpts { get; set; }
+        
+        [YamlMember(Alias = "grpc-opts", ApplyNamingConventions = false)]
         public GrpcOpts? GrpcOpts { get; set; }
         #endregion
     }
 
     public class WsOpts
     {
+        [YamlMember(Alias = "path", ApplyNamingConventions = false)]
         public string? Path { get; set; }
+        
+        [YamlMember(Alias = "headers", ApplyNamingConventions = false)]
         public Dictionary<string, string>? Headers { get; set; }
     }
 
     public class GrpcOpts
     {
+        [YamlMember(Alias = "grpc-service-name", ApplyNamingConventions = false)]
         public string? GrpcServiceName { get; set; }
     }
 
     public class RealityOpts
     {
+        [YamlMember(Alias = "public-key", ApplyNamingConventions = false)]
         public string? PublicKey { get; set; }
+        
+        [YamlMember(Alias = "short-id", ApplyNamingConventions = false)]
         public string? ShortId { get; set; }
     }
 }
