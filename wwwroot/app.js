@@ -338,7 +338,7 @@ async function submitAddImportSub(e, groupId) {
             url: type === 'url' ? document.getElementById('import-url').value : '',
             prefix: document.getElementById('import-prefix').value,
             isActive: document.getElementById('import-active').checked,
-            fixedContent: type === 'fixed' ? document.getElementById('import-fixed').value : null
+            fixedContent: type === 'fixed' ? document.getElementById('import-fixed').value : ''
         })
     });
     hideModal();
@@ -398,7 +398,7 @@ async function submitEditImportSub(e, id) {
             url: type === 'url' ? document.getElementById('import-url').value : '',
             prefix: document.getElementById('import-prefix').value,
             isActive: document.getElementById('import-active').checked,
-            fixedContent: type === 'fixed' ? document.getElementById('import-fixed').value : null
+            fixedContent: type === 'fixed' ? document.getElementById('import-fixed').value : ''
         })
     });
     hideModal();
