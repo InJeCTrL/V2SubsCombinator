@@ -85,6 +85,15 @@ namespace V2SubsCombinator.Utils
         public string Name { get; set; } = string.Empty;
         public string Type { get; set; } = "select";
         public List<string>? Proxies { get; set; }
+        public string? Url { get; set; }
+        public int? Interval { get; set; }
+        public int? Tolerance { get; set; }
+        public bool? Lazy { get; set; }
+
+        [YamlMember(Alias = "expected-status", ApplyNamingConventions = false)]
+        public int? ExpectedStatus { get; set; }
+
+        public int? Timeout { get; set; }
     }
 
     public static class V2SubsHelper
@@ -192,13 +201,33 @@ namespace V2SubsCombinator.Utils
                     {
                         Name = "PROXY",
                         Type = "select",
-                        Proxies = proxyNames
+                        Proxies = ["AUTO", "DIRECT", .. proxyNames]
+                    },
+                    new ProxyGroup
+                    {
+                        Name = "AUTO",
+                        Type = "url-test",
+                        Proxies = proxyNames,
+                        Url = "https://www.gstatic.com/generate_204",
+                        Interval = 300,
+                        Tolerance = 100,
+                        Lazy = true,
+                        ExpectedStatus = 204,
+                        Timeout = 5000
                     }
                 ],
                 Rules =
                 [
-                    "DOMAIN-KEYWORD,localhost,DIRECT",
-                    "IP-CIDR,127.0.0.0/8,DIRECT",
+                    "DOMAIN-SUFFIX,localhost,DIRECT",
+                    "GEOSITE,private,DIRECT",
+                    "GEOSITE,cn,DIRECT",
+                    "IP-CIDR,127.0.0.0/8,DIRECT,no-resolve",
+                    "IP-CIDR,10.0.0.0/8,DIRECT,no-resolve",
+                    "IP-CIDR,172.16.0.0/12,DIRECT,no-resolve",
+                    "IP-CIDR,192.168.0.0/16,DIRECT,no-resolve",
+                    "IP-CIDR,100.64.0.0/10,DIRECT,no-resolve",
+                    "IP-CIDR6,::1/128,DIRECT,no-resolve",
+                    "IP-CIDR6,fc00::/7,DIRECT,no-resolve",
                     "GEOIP,CN,DIRECT",
                     "MATCH,PROXY"
                 ]
