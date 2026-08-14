@@ -218,6 +218,7 @@ namespace V2SubsCombinator.Utils
                 ],
                 Rules =
                 [
+                    "GEOSITE,category-cryptocurrency,PROXY",
                     "DOMAIN-SUFFIX,localhost,DIRECT",
                     "GEOSITE,private,DIRECT",
                     "GEOSITE,cn,DIRECT",
