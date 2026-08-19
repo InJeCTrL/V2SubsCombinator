@@ -69,6 +69,14 @@ public class SubscriptionController(ISubscription subscriptionService) : Control
         return Ok(result);
     }
 
+    [HttpPost("import-subs/cache")]
+    [InjectUserId]
+    public async Task<ActionResult<ImportSubResult>> RefreshImportSubCache([FromBody] RefreshImportSubCacheRequest request)
+    {
+        var result = await _subscriptionService.RefreshImportSubCacheAsync(request);
+        return Ok(result);
+    }
+
     [HttpDelete("import-subs")]
     [InjectUserId]
     public async Task<ActionResult<ImportSubResult>> RemoveImportSub([FromQuery] RemoveImportSubRequest request)

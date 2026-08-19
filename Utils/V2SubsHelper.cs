@@ -156,6 +156,36 @@ namespace V2SubsCombinator.Utils
             return nodes;
         }
 
+        private static List<SupportedNode> ParseContentToNodes(string content, string remarkPrefix)
+        {
+            if (SupportedNetworkNodeHelper.TryGetNodeType(content.Trim(), out _))
+            {
+                var node = ParseSingleNode(content.Trim(), remarkPrefix);
+                return node == null ? [] : [node];
+            }
+
+            return IsClashYaml(content)
+                ? ParseYamlToNodes(content, remarkPrefix)
+                : ParseV2rayToNodes(content, remarkPrefix);
+        }
+
+        public static async Task<string?> FetchSubscriptionContentAsync(string url)
+        {
+            if (string.IsNullOrEmpty(url)) return null;
+            if (SupportedNetworkNodeHelper.TryGetNodeType(url, out _)) return url;
+
+            for (var retry = 0; retry < 5; retry++)
+            {
+                try
+                {
+                    return await httpClient.GetStringAsync(url);
+                }
+                catch { }
+            }
+
+            return null;
+        }
+
         private static string GenerateYaml(List<SupportedNode> nodes)
         {
             var validNodes = nodes.Where(n => !string.IsNullOrEmpty(n.Server) && n.Port != null).ToList();
@@ -259,14 +289,7 @@ namespace V2SubsCombinator.Utils
                 // 如果有固定内容，直接解析
                 if (!string.IsNullOrEmpty(fixedContent))
                 {
-                    if (IsClashYaml(fixedContent))
-                    {
-                        nodes.AddRange(ParseYamlToNodes(fixedContent, remarkPrefix));
-                    }
-                    else
-                    {
-                        nodes.AddRange(ParseV2rayToNodes(fixedContent, remarkPrefix));
-                    }
+                    nodes.AddRange(ParseContentToNodes(fixedContent, remarkPrefix));
                     return nodes;
                 }
 
@@ -285,23 +308,10 @@ namespace V2SubsCombinator.Utils
                 }
 
                 // 从 URL 获取订阅
-                for (var retry = 0; retry < 5; retry++)
+                var content = await FetchSubscriptionContentAsync(url);
+                if (!string.IsNullOrEmpty(content))
                 {
-                    try
-                    {
-                        var content = await httpClient.GetStringAsync(url);
-
-                        if (IsClashYaml(content))
-                        {
-                            nodes.AddRange(ParseYamlToNodes(content, remarkPrefix));
-                        }
-                        else
-                        {
-                            nodes.AddRange(ParseV2rayToNodes(content, remarkPrefix));
-                        }
-                        break;
-                    }
-                    catch { }
+                    nodes.AddRange(ParseContentToNodes(content, remarkPrefix));
                 }
                 return nodes;
             });

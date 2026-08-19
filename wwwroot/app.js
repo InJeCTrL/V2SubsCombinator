@@ -84,6 +84,12 @@ function logout() {
     showPage('auth-page');
 }
 
+function formatCacheTime(value) {
+    if (!value) return '尚未缓存';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '时间未知' : date.toLocaleString('zh-CN');
+}
+
 document.getElementById('logout-btn').addEventListener('click', logout);
 
 
@@ -139,6 +145,9 @@ async function toggleGroup(id) {
                 ${(group.importSubData || []).map(s => {
                     const isFixed = s.fixedContent && s.fixedContent.length > 0;
                     const displayUrl = isFixed ? '(固定内容)' : (s.url || '(未设置)');
+                    const cacheStatus = s.useCache
+                        ? `<span class="cache-info ${s.cachedAt ? '' : 'cache-expired'}">缓存: ${formatCacheTime(s.cachedAt)}</span>`
+                        : '';
                     
                     return `
                     <div class="sub-item">
@@ -148,10 +157,12 @@ async function toggleGroup(id) {
                                 <span>前缀: ${escapeHtml(s.prefix) || '无'}</span>
                                 <span class="status-badge ${isFixed ? 'status-active' : 'status-inactive'}">${isFixed ? '固定内容' : 'URL订阅'}</span>
                                 <span class="status-badge ${s.isActive ? 'status-active' : 'status-inactive'}">${s.isActive ? '启用' : '禁用'}</span>
+                                ${cacheStatus}
                             </div>
                         </div>
                         <div class="sub-item-actions">
-                            <button class="btn-edit" onclick="editImportSub('${s.id}', '${escapeHtml(s.url)}', '${escapeHtml(s.prefix)}', ${s.isActive}, ${escapeHtml(JSON.stringify(s.fixedContent || ''))})">编辑</button>
+                            ${s.useCache && !isFixed ? `<button class="btn-cache" onclick="refreshImportSubCache('${s.id}', '${id}', this)">更新缓存</button>` : ''}
+                            <button class="btn-edit" onclick="editImportSub('${s.id}', '${escapeHtml(s.url)}', '${escapeHtml(s.prefix)}', ${s.isActive}, ${escapeHtml(JSON.stringify(s.fixedContent || ''))}, ${s.useCache})">编辑</button>
                             <button class="btn-delete" onclick="deleteImportSub('${s.id}')">删除</button>
                         </div>
                     </div>
@@ -317,6 +328,10 @@ function addImportSub(groupId) {
                 <input type="checkbox" id="import-active" checked>
                 <label for="import-active">启用</label>
             </div>
+            <div class="checkbox-group" id="import-cache-group">
+                <input type="checkbox" id="import-use-cache">
+                <label for="import-use-cache">使用缓存（客户端更新订阅时不回源）</label>
+            </div>
             <button type="submit">添加</button>
         </form>
     `);
@@ -326,27 +341,37 @@ function toggleImportType() {
     const type = document.querySelector('input[name="import-type"]:checked').value;
     document.getElementById('url-input-group').style.display = type === 'url' ? 'block' : 'none';
     document.getElementById('fixed-input-group').style.display = type === 'fixed' ? 'block' : 'none';
+    const cacheGroup = document.getElementById('import-cache-group');
+    if (cacheGroup) {
+        cacheGroup.style.display = type === 'url' ? 'flex' : 'none';
+        if (type !== 'url') document.getElementById('import-use-cache').checked = false;
+    }
 }
 
 async function submitAddImportSub(e, groupId) {
     e.preventDefault();
     const type = document.querySelector('input[name="import-type"]:checked').value;
-    await api('/subscription/import-subs', {
+    const res = await api('/subscription/import-subs', {
         method: 'POST',
         body: JSON.stringify({
             exportSubGroupId: groupId,
             url: type === 'url' ? document.getElementById('import-url').value : '',
             prefix: document.getElementById('import-prefix').value,
             isActive: document.getElementById('import-active').checked,
-            fixedContent: type === 'fixed' ? document.getElementById('import-fixed').value : ''
+            fixedContent: type === 'fixed' ? document.getElementById('import-fixed').value : '',
+            useCache: type === 'url' && document.getElementById('import-use-cache').checked
         })
     });
+    if (!res.success) {
+        alert(res.message || '添加失败');
+        return;
+    }
     hideModal();
     toggleGroup(groupId);
     toggleGroup(groupId);
 }
 
-function editImportSub(id, url, prefix, isActive, fixedContentJson) {
+function editImportSub(id, url, prefix, isActive, fixedContentJson, useCache) {
     let fixedContent = '';
     try {
         fixedContent = fixedContentJson ? JSON.parse(fixedContentJson) : '';
@@ -383,6 +408,10 @@ function editImportSub(id, url, prefix, isActive, fixedContentJson) {
                 <input type="checkbox" id="import-active" ${isActive ? 'checked' : ''}>
                 <label for="import-active">启用</label>
             </div>
+            <div class="checkbox-group" id="import-cache-group" style="display:${!hasFixed ? 'flex' : 'none'}">
+                <input type="checkbox" id="import-use-cache" ${useCache && !hasFixed ? 'checked' : ''}>
+                <label for="import-use-cache">使用缓存（URL 变化后需重新更新缓存）</label>
+            </div>
             <button type="submit">保存</button>
         </form>
     `);
@@ -391,18 +420,51 @@ function editImportSub(id, url, prefix, isActive, fixedContentJson) {
 async function submitEditImportSub(e, id) {
     e.preventDefault();
     const type = document.querySelector('input[name="import-type"]:checked').value;
-    await api('/subscription/import-subs', {
+    const res = await api('/subscription/import-subs', {
         method: 'PUT',
         body: JSON.stringify({
             id,
             url: type === 'url' ? document.getElementById('import-url').value : '',
             prefix: document.getElementById('import-prefix').value,
             isActive: document.getElementById('import-active').checked,
-            fixedContent: type === 'fixed' ? document.getElementById('import-fixed').value : ''
+            fixedContent: type === 'fixed' ? document.getElementById('import-fixed').value : '',
+            useCache: type === 'url' && document.getElementById('import-use-cache').checked
         })
     });
+    if (!res.success) {
+        alert(res.message || '保存失败');
+        return;
+    }
     hideModal();
     loadGroups();
+}
+
+async function refreshImportSubCache(id, groupId, button) {
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.textContent = '更新中...';
+
+    try {
+        const res = await api('/subscription/import-subs/cache', {
+            method: 'POST',
+            body: JSON.stringify({ id })
+        });
+        if (!res.success) {
+            alert(res.message || '缓存更新失败');
+            return;
+        }
+
+        const content = document.getElementById(`content-${groupId}`);
+        content.classList.remove('expanded');
+        await toggleGroup(groupId);
+    } catch (err) {
+        alert('缓存更新失败');
+    } finally {
+        if (button.isConnected) {
+            button.disabled = false;
+            button.textContent = originalText;
+        }
+    }
 }
 
 async function deleteImportSub(id) {

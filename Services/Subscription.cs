@@ -66,7 +66,9 @@ namespace V2SubsCombinator.Services
                     Url = s.Url,
                     Prefix = s.Prefix,
                     IsActive = s.IsActive,
-                    FixedContent = s.FixedContent
+                    FixedContent = s.FixedContent,
+                    UseCache = s.UseCache,
+                    CachedAt = s.CachedAt
                 })],
                 ExportSubDataList = [.. exportSubs.Select(s => new ExportSubData
                 {
@@ -118,6 +120,7 @@ namespace V2SubsCombinator.Services
                 return new ImportSubResult { Success = false };
             }
 
+            var fixedContent = string.IsNullOrEmpty(request.FixedContent) ? null : request.FixedContent;
             var newImportSub = new ImportSub
             {
                 Url = request.Url,
@@ -125,7 +128,8 @@ namespace V2SubsCombinator.Services
                 IsActive = request.IsActive,
                 ExportSubGroupId = request.ExportSubGroupId,
                 UserId = request.UserId,
-                FixedContent = request.FixedContent
+                FixedContent = fixedContent,
+                UseCache = request.UseCache && fixedContent == null && !string.IsNullOrEmpty(request.Url)
             };
 
             await _dbContext.ImportSubs.InsertOneAsync(newImportSub);
@@ -276,17 +280,40 @@ namespace V2SubsCombinator.Services
 
         public async Task<ImportSubResult> UpdateImportSubAsync(UpdateImportSubRequest request)
         {
+            var importSub = await _dbContext.ImportSubs
+                .Find(s => s.Id == request.Id && s.UserId == request.UserId)
+                .FirstOrDefaultAsync();
+
+            if (importSub == null)
+                return new ImportSubResult { Success = false, Message = "导入订阅不存在" };
+
             var updateDef = Builders<ImportSub>.Update;
             var updates = new List<UpdateDefinition<ImportSub>>();
 
+            var newUrl = request.Url ?? importSub.Url;
+            var requestedFixedContent = request.FixedContent ?? importSub.FixedContent;
+            var newFixedContent = string.IsNullOrEmpty(requestedFixedContent) ? null : requestedFixedContent;
+            var newUseCache = (request.UseCache ?? importSub.UseCache) &&
+                              newFixedContent == null &&
+                              !string.IsNullOrEmpty(newUrl);
+            var sourceChanged = newUrl != importSub.Url || newFixedContent != importSub.FixedContent;
+
             if (request.Url != null)
-                updates.Add(updateDef.Set(s => s.Url, request.Url));
+                updates.Add(updateDef.Set(s => s.Url, newUrl));
             if (request.Prefix != null)
                 updates.Add(updateDef.Set(s => s.Prefix, request.Prefix));
             if (request.IsActive.HasValue)
                 updates.Add(updateDef.Set(s => s.IsActive, request.IsActive.Value));
             if (request.FixedContent != null)
-                updates.Add(updateDef.Set(s => s.FixedContent, request.FixedContent));
+                updates.Add(updateDef.Set(s => s.FixedContent, newFixedContent));
+            if (request.UseCache.HasValue || newUseCache != importSub.UseCache)
+                updates.Add(updateDef.Set(s => s.UseCache, newUseCache));
+
+            if (sourceChanged || !newUseCache)
+            {
+                updates.Add(updateDef.Unset(s => s.CachedContent));
+                updates.Add(updateDef.Unset(s => s.CachedAt));
+            }
 
             if (updates.Count == 0)
                 return new ImportSubResult { Success = false };
@@ -295,7 +322,42 @@ namespace V2SubsCombinator.Services
                 s => s.Id == request.Id && s.UserId == request.UserId,
                 updateDef.Combine(updates));
 
-            return new ImportSubResult { Success = result.ModifiedCount > 0 };
+            return new ImportSubResult { Success = result.MatchedCount > 0 };
+        }
+
+        public async Task<ImportSubResult> RefreshImportSubCacheAsync(RefreshImportSubCacheRequest request)
+        {
+            var importSub = await _dbContext.ImportSubs
+                .Find(s => s.Id == request.Id && s.UserId == request.UserId)
+                .FirstOrDefaultAsync();
+
+            if (importSub == null)
+                return new ImportSubResult { Success = false, Message = "导入订阅不存在" };
+            if (!importSub.UseCache)
+                return new ImportSubResult { Success = false, Message = "请先启用缓存" };
+            if (importSub.IsFixedContent || string.IsNullOrEmpty(importSub.Url))
+                return new ImportSubResult { Success = false, Message = "只有 URL 订阅可以更新缓存" };
+
+            var content = await V2SubsHelper.FetchSubscriptionContentAsync(importSub.Url);
+            if (string.IsNullOrEmpty(content))
+                return new ImportSubResult { Success = false, Message = "获取原始订阅失败，已保留现有缓存" };
+
+            var cachedAt = DateTime.UtcNow;
+            var update = Builders<ImportSub>.Update
+                .Set(s => s.CachedContent, content)
+                .Set(s => s.CachedAt, cachedAt);
+
+            var result = await _dbContext.ImportSubs.UpdateOneAsync(
+                s => s.Id == importSub.Id &&
+                     s.UserId == request.UserId &&
+                     s.UseCache &&
+                     s.Url == importSub.Url,
+                update);
+
+            if (result.ModifiedCount == 0)
+                return new ImportSubResult { Success = false, Message = "订阅已发生变化，请重试" };
+
+            return new ImportSubResult { Success = true, CachedAt = cachedAt };
         }
 
         public async Task<string> GetExportSubContentAsync(GetExportSubContentRequest request)
@@ -329,7 +391,10 @@ namespace V2SubsCombinator.Services
 
             foreach (var sub in importSubs)
             {
-                subscriptions.Add((sub.Url, sub.Prefix, sub.FixedContent));
+                if (sub.UseCache)
+                    subscriptions.Add((string.Empty, sub.Prefix, sub.CachedContent));
+                else
+                    subscriptions.Add((sub.Url, sub.Prefix, sub.FixedContent));
             }
 
             return await V2SubsHelper.FetchAndCombineSubscriptionsAsync(subscriptions, request.IsClash);

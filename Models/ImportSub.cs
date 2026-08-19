@@ -29,6 +29,15 @@ public class ImportSub
             [BsonElement("fixedContent")]
             public string? FixedContent { get; set; }
 
+            [BsonElement("useCache")]
+            public bool UseCache { get; set; }
+
+            [BsonElement("cachedContent")]
+            public string? CachedContent { get; set; }
+
+            [BsonElement("cachedAt")]
+            public DateTime? CachedAt { get; set; }
+
             [BsonIgnore]
             public bool IsFixedContent => !string.IsNullOrEmpty(FixedContent);
         }

@@ -170,6 +170,7 @@ main {
 .btn-delete { background: #e74c3c; color: #fff; }
 .btn-add { background: #27ae60; color: #fff; }
 .btn-copy { background: #9b59b6; color: #fff; }
+.btn-cache { background: #f39c12; color: #fff; }
 
 .group-content {
     padding: 20px;
@@ -276,6 +277,19 @@ main {
 .sub-item-actions {
     display: flex;
     gap: 6px;
+}
+
+.sub-item-actions button {
+    padding: 6px 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.sub-item-actions button:disabled {
+    opacity: 0.65;
+    cursor: wait;
 }
 
 .status-badge {

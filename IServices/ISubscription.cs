@@ -15,6 +15,7 @@ namespace V2SubsCombinator.IServices
         public Task<ExportSubGroupResult> UpdateExportSubGroupAsync(UpdateExportSubGroupRequest updateExportSubGroupRequest);
         public Task<ExportSubResult> UpdateExportSubAsync(UpdateExportSubRequest updateExportSubRequest);
         public Task<ImportSubResult> UpdateImportSubAsync(UpdateImportSubRequest updateImportSubRequest);
+        public Task<ImportSubResult> RefreshImportSubCacheAsync(RefreshImportSubCacheRequest refreshImportSubCacheRequest);
         public Task<string> GetExportSubContentAsync(GetExportSubContentRequest getExportSubContentRequest);
     }
 }
