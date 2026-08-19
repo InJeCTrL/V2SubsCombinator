@@ -174,11 +174,26 @@ namespace V2SubsCombinator.Utils
             if (string.IsNullOrEmpty(url)) return null;
             if (SupportedNetworkNodeHelper.TryGetNodeType(url, out _)) return url;
 
+            // 优先让订阅源返回 Clash YAML，以保留 AnyTLS、Hysteria2 等节点。
+            // 如果请求失败或响应为空，再降级为不携带 User-Agent 的普通请求。
+            try
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Get, url);
+                request.Headers.UserAgent.ParseAdd("clash.meta");
+                using var response = await httpClient.SendAsync(request);
+                response.EnsureSuccessStatusCode();
+
+                var content = await response.Content.ReadAsStringAsync();
+                if (!string.IsNullOrWhiteSpace(content)) return content;
+            }
+            catch { }
+
             for (var retry = 0; retry < 5; retry++)
             {
                 try
                 {
-                    return await httpClient.GetStringAsync(url);
+                    var content = await httpClient.GetStringAsync(url);
+                    if (!string.IsNullOrWhiteSpace(content)) return content;
                 }
                 catch { }
             }
